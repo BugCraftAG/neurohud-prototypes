@@ -20,6 +20,7 @@ let video = null;
 let stream = null;
 let proc = null, procCtx = null;
 let lastProc = 0, t0 = 0, simN = 0, simAcc = 0, lastNow = 0, frameN = 0;
+let trustSteps = 10;          // so viele 0,1-s-Schritte schlägt die Vorhersage "Stillstand"
 
 function setStatus(text, isError = false) {
   statusEl.textContent = text;
@@ -76,7 +77,7 @@ async function startCamera() {
   procCtx = proc.getContext("2d", { willReadFrequently: true });
 
   demo.reset("cam");
-  begin("cam", "Bewege langsam die Hand. Der Hintergrund sollte ruhig sein.");
+  begin("cam", "Führe die Hand gleichmäßig durchs Bild. Der Hintergrund sollte ruhig sein.");
 }
 
 function startSim() {
@@ -95,6 +96,7 @@ function begin(m, hint) {
   $("hint").textContent = hint;
   t0 = lastNow = lastProc = performance.now();
   frameN = 0;
+  trustSteps = 10;
   updateStats();
   requestAnimationFrame(loop);
 }
@@ -194,8 +196,10 @@ function drawHud(pos, path) {
   if (path && path.length) {
     let prev = pos;
     path.forEach((p, i) => {
-      const a = 1 - (i / path.length) * 0.7;
-      ctx.strokeStyle = ctx.fillStyle = `rgba(120,255,160,${a})`;
+      const a = 1 - (i / path.length) * 0.6;
+      // grün = hier trifft die Vorhersage besser als Stillstand, grau = nicht mehr
+      const rgb = i < trustSteps ? "120,255,160" : "150,160,172";
+      ctx.strokeStyle = ctx.fillStyle = `rgba(${rgb},${a})`;
       ctx.lineWidth = 2 * k;
       if (prev) line(prev[0], prev[1], p[0], p[1]);
       ctx.beginPath();
@@ -236,9 +240,29 @@ function updateStats() {
     el.classList.toggle("best", s.count >= 30 && m === s.best);
   }
   $("count").textContent = s.count
-    ? `${s.count} Vorhersagen ausgewertet.`
+    ? `${s.count} Vorhersagen ausgewertet. HUD zeigt: ${s.shown}.`
     : "Noch keine Vorhersagen ausgewertet.";
+  updateTrust(s);
   drawChart(s.errors);
+}
+
+function updateTrust(s) {
+  // Bis zu welchem Horizont ist die gezeigte Vorhersage besser als "Stillstand"?
+  const el = $("trust");
+  if (s.count < 30) {
+    trustSteps = 10;
+    el.textContent = "";
+    return;
+  }
+  const mv = s.errors[s.shown], still = s.errors.Stillstand;
+  let k = 0;
+  while (k < 10 && mv[k] != null && still[k] != null && mv[k] < still[k]) k++;
+  trustSteps = k;
+  const sec = (n) => (n / 10).toFixed(1).replace(".", ",");
+  el.textContent =
+    k === 10 ? "Die Vorhersage ist über die ganze Sekunde besser als Stillstand."
+    : k === 0 ? "Stillstand trifft schon ab 0,1 s besser: Die Bewegung ist gerade sehr sprunghaft."
+    : `Die Vorhersage ist bis ${sec(k)} s besser als Stillstand, danach nicht mehr (graue Punkte).`;
 }
 
 function drawChart(errors) {
@@ -285,6 +309,7 @@ $("btn-cam").addEventListener("click", startCamera);
 $("btn-sim").addEventListener("click", startSim);
 $("btn-reset").addEventListener("click", () => {
   if (mode) demo.reset(mode);
+  trustSteps = 10;
   simN = 0;
   t0 = performance.now();
   updateStats();

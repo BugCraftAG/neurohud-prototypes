@@ -101,6 +101,8 @@
   .model.best .name::after { content: "  ← beste"; color: var(--hud); }
   .bar { height: 6px; border-radius: 3px; background: var(--line); margin-top: 6px; overflow: hidden; }
   .bar span { display: block; height: 100%; width: 0; transition: width .3s ease; }
+  .trust { font-size: 13px; line-height: 1.45; color: var(--text); margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .trust:empty { display: none; }
   #chart { width: 100%; height: 170px; display: block; margin-top: 8px; }
   .count { font: 12px/1.4 var(--mono); color: var(--muted); margin-top: 10px; }
 
@@ -134,7 +136,7 @@
   <div class="grid">
     <div class="stage">
       <canvas id="view" width="960" height="540"></canvas>
-      <div class="placeholder" id="placeholder">Kamera starten und die Hand langsam vor der Kamera bewegen.<br>Oder ohne Kamera: Simulation ansehen.</div>
+      <div class="placeholder" id="placeholder">Kamera starten und die Hand gleichmäßig durchs Bild führen.<br>Oder ohne Kamera: Simulation ansehen.</div>
       <div class="hint" id="hint"></div>
     </div>
 
@@ -156,14 +158,15 @@
       <h2 style="margin-top: 20px">Fehler je Horizont</h2>
       <canvas id="chart" width="560" height="340"></canvas>
       <div class="count" id="count">Noch keine Vorhersagen ausgewertet.</div>
+      <div class="trust" id="trust"></div>
     </aside>
   </div>
 
   <section class="how">
     <div class="step"><b>01</b><h3>Erkennen</h3><p>Jedes Bild wird mit einem gleitenden Hintergrund verglichen. Der Schwerpunkt der Pixel, die sich ändern, ist die gemessene Position.</p></div>
     <div class="step"><b>02</b><h3>Glätten</h3><p>Ein Kalman-Filter schätzt aus den verrauschten Messungen Position, Geschwindigkeit und Beschleunigung.</p></div>
-    <div class="step"><b>03</b><h3>Vorhersagen</h3><p>Drei Modelle rechnen 10 × 0,1 s nach vorne: Stillstand, geradeaus weiter, mit Beschleunigung. Das HUD zeigt das bisher beste.</p></div>
-    <div class="step"><b>04</b><h3>Überprüfen</h3><p>Jede Vorhersage wird gespeichert und mit der echten Position verglichen, sobald die Zeit erreicht ist.</p></div>
+    <div class="step"><b>03</b><h3>Vorhersagen</h3><p>Drei Modelle rechnen 10 × 0,1 s nach vorne: Stillstand, geradeaus weiter, mit Beschleunigung. Das HUD zeigt die beste Vorhersage, die eine Bewegung erwartet.</p></div>
+    <div class="step"><b>04</b><h3>Überprüfen</h3><p>Jede Vorhersage wird mit der echten Position verglichen, sobald die Zeit erreicht ist. Grüne Punkte: hier schlägt die Vorhersage „Stillstand". Graue: hier nicht mehr.</p></div>
   </section>
 
   <p class="note">Die gesamte Rechnung läuft als Python-Code in deinem Browser (über Pyodide). Es gibt keinen Server: Das Kamerabild verlässt dein Gerät nicht.</p>
