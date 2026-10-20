@@ -240,7 +240,7 @@ def main():
                 paths = {"Stillstand": still, "Geradeaus": straight,
                          "Beschleunigt": path}
                 ev.add_prediction(t, paths)
-                path = paths[ev.best_model()]
+                path = paths[ev.best_model(Evaluator.MOVING)]
         ev.evaluate(t)
 
         draw_hud(frame, pos, path, ev, fps_shown)

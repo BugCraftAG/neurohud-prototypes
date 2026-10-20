@@ -137,11 +137,18 @@ class Evaluator:
         e = self.errors[model][k]
         return float(np.mean(e)) if e else float("nan")
 
-    def best_model(self, min_samples=30):
-        """Modell mit dem kleinsten 1-s-Fehler (vorher: Geradeaus)."""
+    MOVING = ("Geradeaus", "Beschleunigt")
+
+    def best_model(self, models=None, min_samples=30):
+        """Modell mit dem kleinsten 1-s-Fehler (vorher: Geradeaus).
+
+        Mit models=Evaluator.MOVING wird nur unter den Modellen gewählt, die
+        eine Bewegung vorhersagen. Das nutzt das HUD: "Stillstand" würde nur
+        einen Punkt unter dem Ring zeichnen.
+        """
         if self.count() < min_samples:
             return "Geradeaus"
-        return min(self.MODELS, key=self.mean_error)
+        return min(models or self.MODELS, key=self.mean_error)
 
     def count(self):
         return len(self.errors["Beschleunigt"][-1])
@@ -182,14 +189,16 @@ class SimulatedMotion:
 # --------------------------------------------------------------------------
 
 class MotionPredictor:
-    """Ein Aufruf pro Kamerabild. Gibt den Pfad des besten Modells zurück."""
+    """Ein Aufruf pro Kamerabild. Gibt den Pfad des besten Modells zurück,
+    das eine Bewegung vorhersagt (Geradeaus oder Beschleunigt)."""
 
-    def __init__(self):
-        self.kf = KalmanPredictor()
+    def __init__(self, **kalman_params):
+        self.kalman_params = kalman_params     # z. B. meas_noise, jerk, tau
+        self.kf = KalmanPredictor(**kalman_params)
         self.ev = Evaluator()
 
     def reset(self):
-        self.kf = KalmanPredictor()
+        self.kf = KalmanPredictor(**self.kalman_params)
         self.ev.reset()
 
     def step(self, t, dt, pos):
@@ -201,7 +210,7 @@ class MotionPredictor:
             paths = {"Stillstand": still, "Geradeaus": straight,
                      "Beschleunigt": self.kf.predict_path()}
             self.ev.add_prediction(t, paths)
-            path = paths[self.ev.best_model()]
+            path = paths[self.ev.best_model(Evaluator.MOVING)]
         self.ev.evaluate(t)
         return path
 
@@ -210,6 +219,7 @@ class MotionPredictor:
         return {
             "count": self.ev.count(),
             "best": self.ev.best_model(),
+            "shown": self.ev.best_model(Evaluator.MOVING),
             "errors": {m: [float(np.mean(e)) if e else None
                            for e in self.ev.errors[m]]
                        for m in Evaluator.MODELS},
