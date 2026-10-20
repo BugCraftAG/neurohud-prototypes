@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+*.mp4
+*.csv
+fehler_vs_horizont.png
+eeg_snapshot.png
