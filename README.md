@@ -5,11 +5,14 @@ Erste Bausteine für mein Langzeitprojekt: ein elektronisches „Vorhersage-Auge
 Der erste Schritt ist kein Implantat. Er ist eine Frage, die man messen kann:
 **Wie gut lässt sich Bewegung 1 Sekunde vorhersagen, und wie schnell wächst der Fehler?**
 
-Das Repo besteht aus zwei Teilen:
+**▶ Live-Demo im Browser: [neurohud-prototype.netlify.app](https://neurohud-prototype.netlify.app)** (Kamera erlauben und die Hand bewegen, oder die Simulation starten)
+
+Das Repo besteht aus drei Teilen:
 
 | Ordner | Was es macht |
 |---|---|
 | `vision/` | Verfolgt ein Objekt mit der Kamera, sagt seine Position in 10 Schritten zu je 0,1 s voraus, blendet das als HUD ein und misst, wie weit jede Vorhersage danebenlag |
+| `web/` | Dieselbe Vorhersage als Browser-Demo: Python läuft über Pyodide direkt im Browser, ohne Server |
 | `eeg/` | Live-Anzeige von EEG-Signalen eines OpenBCI-Boards mit Filtern und Frequenzband-Analyse (Alpha, Beta, …) |
 
 ---
@@ -41,14 +44,16 @@ Das HUD zeigt automatisch die Vorhersage des Modells, das bisher am besten triff
 
 | Horizont | 0,1 s | 0,3 s | 0,5 s | 1,0 s |
 |---|---|---|---|---|
-| Stillstand | 17,5 px | 49,9 px | 81,0 px | 152,9 px |
-| **Geradeaus** | **8,2 px** | **23,1 px** | **42,5 px** | **108,3 px** |
-| Beschleunigt | 8,5 px | 25,7 px | 48,2 px | 121,3 px |
+| Stillstand | 17,2 px | 49,2 px | 79,9 px | 150,6 px |
+| **Geradeaus** | **7,9 px** | **22,2 px** | **40,9 px** | **104,3 px** |
+| Beschleunigt | 8,2 px | 24,7 px | 46,5 px | 117,8 px |
 
 ### Was ich daraus gelernt habe
 
 - **Kurze Vorhersagen sind einfach, lange sind schwer.** Bei 0,1 s liegt der Fehler unter der halben Ballgröße. Bei 1 s ist er über 13-mal so groß. Der Fehler wächst schneller als linear, weil sich kleine Fehler in der Geschwindigkeit über die Zeit aufaddieren.
 - **Mehr Physik ist nicht automatisch besser.** Meine Erwartung war, dass das Modell mit Beschleunigung gewinnt. Es verliert, weil die geschätzte Beschleunigung so verrauscht ist, dass sie mehr Fehler hinzufügt als sie korrigiert. Ich habe 48 Parameterkombinationen getestet, das Ergebnis blieb gleich.
+- **Welches Modell gewinnt, hängt von der Bewegung ab.** Bei einer gleichmäßigen Kreisbewegung (Test im Browser-Teil) gewinnt plötzlich das Beschleunigungsmodell, weil die Beschleunigung dort konstant und gut messbar ist. Deshalb wählt das HUD das Modell live nach den gemessenen Fehlern aus, statt eines fest einzubauen.
+- **Bei Handbewegungen trägt die Vorhersage nur etwa 0,6 s.** In einem Test mit simulierten Handbewegungen im Kamerabild (mit der echten Erkennung) schlägt „Geradeaus“ den Stillstand bis ungefähr 0,6 s, danach nicht mehr, weil Menschen ihre Richtung oft ändern. Die Browser-Demo zeigt das live: Grüne Vorhersagepunkte sind besser als Stillstand, graue nicht mehr.
 - **Physikmodelle allein reichen nicht.** Die simulierte Bewegung folgt einem langsamen Muster, das sich alle paar Sekunden wiederholt. Ein Kalman-Filter kann so ein Muster nicht lernen. Ein lernendes Modell könnte das. Genau hier will ich weitermachen.
 
 ### Starten
@@ -66,7 +71,29 @@ Tasten: `q` beendet das Programm, `r` setzt die Statistik zurück. Beim Beenden 
 
 ---
 
-## 2. EEG-Live-Viewer (`eeg/`)
+## 2. Browser-Demo (`web/`)
+
+Dieselbe Bewegungsvorhersage, aber im Browser. Die Rechnung ist **echter Python-Code**, der über [Pyodide](https://pyodide.org) (Python als WebAssembly) direkt im Browser läuft:
+
+- `vision/predictor.py`: Kalman-Filter, die drei Modelle und die Fehlermessung. Dieselbe Datei benutzt auch das Desktop-Programm, also rechnen beide garantiert gleich.
+- `web/web_core.py`: Bewegungserkennung mit numpy (gleitender Hintergrund statt OpenCV) und die Simulation.
+- `web/app.js`: nur Kamera holen und HUD zeichnen.
+
+Es gibt keinen Server. Das Kamerabild verlässt den Browser nicht.
+
+Lokal starten:
+
+```bash
+cp vision/predictor.py web/
+cd web
+python -m http.server 8000      # dann http://localhost:8000 öffnen
+```
+
+Die Seite wird über Netlify gehostet (`netlify.toml`). Jeder Push auf GitHub baut sie automatisch neu.
+
+---
+
+## 3. EEG-Live-Viewer (`eeg/`)
 
 ![EEG-Viewer](docs/eeg_viewer.png)
 
