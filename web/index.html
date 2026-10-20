@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Predict-Eye – Live-Demo</title>
+<meta name="description" content="Bewegungsvorhersage im Browser: Python (Pyodide) sagt voraus, wo sich etwas in einer Sekunde befindet, und misst live, wie weit es danebenliegt.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #07090c;
+    --panel: #0d1117;
+    --line: #1c2530;
+    --text: #dce6ee;
+    --muted: #7d8b99;
+    --hud: #78ffa0;
+    --hud-dim: #3c8c5a;
+    --warn: #ffb43c;
+    --still: #8a96a3;
+    --accel: #e0a43e;
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
+    --sans: "IBM Plex Sans", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.55 var(--sans);
+  }
+  main { max-width: 1120px; margin: 0 auto; padding: 32px 16px 48px; }
+
+  .eyebrow {
+    font: 500 12px/1 var(--mono);
+    letter-spacing: .14em;
+    color: var(--hud);
+    text-transform: uppercase;
+  }
+  h1 {
+    font-weight: 600;
+    font-size: clamp(28px, 5vw, 44px);
+    line-height: 1.1;
+    margin: 12px 0 12px;
+    letter-spacing: -.01em;
+  }
+  .lead { color: var(--muted); max-width: 62ch; margin: 0 0 24px; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; }
+  button {
+    font: 500 14px/1 var(--mono);
+    padding: 12px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--text);
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--hud-dim); }
+  button.primary { background: var(--hud); color: #04140a; border-color: var(--hud); }
+  button:disabled { opacity: .45; cursor: wait; }
+  #status { font: 13px/1.4 var(--mono); color: var(--muted); }
+  #status.error { color: #ff7a7a; }
+
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+
+  .stage {
+    position: relative;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
+    display: grid;
+    place-items: center;
+  }
+  .stage canvas { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .placeholder {
+    position: absolute; inset: 0;
+    display: grid; place-items: center; text-align: center;
+    color: var(--muted); font: 14px/1.5 var(--mono); padding: 24px;
+  }
+  .hint {
+    position: absolute; left: 12px; bottom: 10px;
+    font: 12px/1.3 var(--mono); color: var(--hud-dim);
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 18px;
+  }
+  .panel h2 { font: 600 13px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; margin: 0 0 4px; }
+  .panel .sub { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
+  .model { margin-bottom: 14px; }
+  .model .row { display: flex; justify-content: space-between; font: 14px/1.2 var(--mono); }
+  .model .val { color: var(--text); }
+  .model.best .name::after { content: "  ← beste"; color: var(--hud); }
+  .bar { height: 6px; border-radius: 3px; background: var(--line); margin-top: 6px; overflow: hidden; }
+  .bar span { display: block; height: 100%; width: 0; transition: width .3s ease; }
+  #chart { width: 100%; height: 170px; display: block; margin-top: 8px; }
+  .count { font: 12px/1.4 var(--mono); color: var(--muted); margin-top: 10px; }
+
+  section.how { margin-top: 40px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  .step { border-top: 1px solid var(--line); padding-top: 14px; }
+  .step b { font: 600 12px/1 var(--mono); color: var(--hud); letter-spacing: .1em; }
+  .step h3 { margin: 8px 0 6px; font-size: 16px; font-weight: 600; }
+  .step p { margin: 0; color: var(--muted); font-size: 14px; }
+
+  .note {
+    margin-top: 32px; padding: 14px 16px; border-left: 2px solid var(--hud-dim);
+    color: var(--muted); font-size: 14px; background: var(--panel); border-radius: 0 8px 8px 0;
+  }
+  footer { margin-top: 40px; color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 8px 24px; }
+  a { color: var(--hud); }
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">Predict-Eye · Prototyp v0.1</div>
+  <h1>Wo bist du in einer Sekunde?</h1>
+  <p class="lead">Diese Demo verfolgt Bewegung im Kamerabild und sagt in zehn Schritten zu je 0,1 s voraus, wo sie gleich sein wird. Sobald die Zukunft eintrifft, misst sie, wie weit jede Vorhersage danebenlag.</p>
+
+  <div class="controls">
+    <button id="btn-cam" class="primary" disabled>Kamera starten</button>
+    <button id="btn-sim" disabled>Simulation ansehen</button>
+    <button id="btn-reset" disabled>Statistik zurücksetzen</button>
+    <span id="status">Python wird im Browser geladen …</span>
+  </div>
+
+  <div class="grid">
+    <div class="stage">
+      <canvas id="view" width="960" height="540"></canvas>
+      <div class="placeholder" id="placeholder">Kamera starten und die Hand langsam vor der Kamera bewegen.<br>Oder ohne Kamera: Simulation ansehen.</div>
+      <div class="hint" id="hint"></div>
+    </div>
+
+    <aside class="panel">
+      <h2>Fehler nach 1 s</h2>
+      <p class="sub">Mittlere Abweichung in Pixeln. Weniger ist besser.</p>
+      <div class="model" data-model="Stillstand">
+        <div class="row"><span class="name">Stillstand</span><span class="val">–</span></div>
+        <div class="bar"><span style="background: var(--still)"></span></div>
+      </div>
+      <div class="model" data-model="Geradeaus">
+        <div class="row"><span class="name">Geradeaus</span><span class="val">–</span></div>
+        <div class="bar"><span style="background: var(--hud)"></span></div>
+      </div>
+      <div class="model" data-model="Beschleunigt">
+        <div class="row"><span class="name">Beschleunigt</span><span class="val">–</span></div>
+        <div class="bar"><span style="background: var(--accel)"></span></div>
+      </div>
+      <h2 style="margin-top: 20px">Fehler je Horizont</h2>
+      <canvas id="chart" width="560" height="340"></canvas>
+      <div class="count" id="count">Noch keine Vorhersagen ausgewertet.</div>
+    </aside>
+  </div>
+
+  <section class="how">
+    <div class="step"><b>01</b><h3>Erkennen</h3><p>Jedes Bild wird mit einem gleitenden Hintergrund verglichen. Der Schwerpunkt der Pixel, die sich ändern, ist die gemessene Position.</p></div>
+    <div class="step"><b>02</b><h3>Glätten</h3><p>Ein Kalman-Filter schätzt aus den verrauschten Messungen Position, Geschwindigkeit und Beschleunigung.</p></div>
+    <div class="step"><b>03</b><h3>Vorhersagen</h3><p>Drei Modelle rechnen 10 × 0,1 s nach vorne: Stillstand, geradeaus weiter, mit Beschleunigung. Das HUD zeigt das bisher beste.</p></div>
+    <div class="step"><b>04</b><h3>Überprüfen</h3><p>Jede Vorhersage wird gespeichert und mit der echten Position verglichen, sobald die Zeit erreicht ist.</p></div>
+  </section>
+
+  <p class="note">Die gesamte Rechnung läuft als Python-Code in deinem Browser (über Pyodide). Es gibt keinen Server: Das Kamerabild verlässt dein Gerät nicht.</p>
+
+  <footer>
+    <span>David Tomoiaga · HTL Bad Radkersburg</span>
+    <a href="https://github.com/BugCraftAG/neurohud-prototypes">Quellcode auf GitHub</a>
+  </footer>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>
