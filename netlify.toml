@@ -1,0 +1,14 @@
+# Netlify baut die Browser-Demo aus dem Ordner web/.
+# predictor.py wird beim Bauen aus vision/ kopiert, damit Desktop-Programm
+# und Browser-Demo garantiert denselben Python-Code verwenden.
+
+[build]
+  publish = "web"
+  command = "cp vision/predictor.py web/predictor.py"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Permissions-Policy = "camera=(self), microphone=()"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

@@ -5,3 +5,4 @@ __pycache__/
 *.csv
 fehler_vs_horizont.png
 eeg_snapshot.png
+web/predictor.py
